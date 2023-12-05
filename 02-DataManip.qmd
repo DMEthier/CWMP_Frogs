@@ -1,0 +1,162 @@
+---
+title: "02-DataManip"
+format: html
+editor: visual
+---
+
+
+#Load Directories and Libraries
+
+```{r load}
+
+library(tidyverse)
+library(reshape)
+
+library(corrplot)
+
+library(sf)
+library(ggmap)
+library(leaflet)
+library(mapview)
+library(rnaturalearth)
+
+
+out.dir <- paste("Output/")
+dat.dir <- paste("Data/")
+```
+
+
+Anuran data are downloaded from the [CWMP](https://www.greatlakeswetlands.org/Home.vbhtml) website in `.xlsx` format. There are multiple tabs per spreadsheet, some which contain the metadata and others the raw data (points and obs), which are saved in the `Data` folder with a .csv 
+
+The site metadata files was provided separately by Doug Tozer. If a new files is needed, Doug or another member of the CWMP team should be contacted directly: dtozer@birdscanada.org
+
+What we will want to load into RStudio is the raw data, which are save in `.csv` format and in the `Data` directory in this R Project folder. If you need to update this analysis, simply re-save the raw data with the same file names in the `Data` folder. 
+
+#Load data and join tables
+
+```{r data}
+
+#Load data
+bpoint<-read.csv("Data/CWMP_anuran_point.csv")
+bobs<-read.csv("Data/CWMP_anuran_obs.csv")
+site<-read.csv("Data/cwmp_master_site_table_june2022.csv")
+
+#change site to site_id 
+site<-site %>% mutate(site_id=site) %>% select(-site)
+
+#Join tables 
+frog_dat<-left_join(bobs, bpoint, by=c("site_id", "crew_name", "date", "year", "sample", "point_id", "qa_done", "quar_flag", "longitude", "latitude", "coord_qual", "comments"))
+
+```
+
+Take a tour of the data to learn about its characteristics. Derive some summary stats to help you understand the data structure.  
+
+#Data exploration
+
+```{r datatour}
+
+#How many year has each sites been run? #How many points per site? 
+sites<-frog_dat %>% group_by(site_id) %>% dplyr::summarize(siteyr=n_distinct(year), npoint=n_distinct(point_id)) 
+
+mean(sites$siteyr) #2.36
+range(sites$siteyr) #1-11
+mean(sites$npoint) #2.58
+range(sites$npoint) #1-17
+
+hist(sites$siteyr) #There are a lot of sites that have only been run once or twice
+hist(sites$npoint)
+
+#How many unique lat longs per points? 
+latlong<-frog_dat %>% group_by(site_id, point_id) %>% dplyr::summarize(nlat=n_distinct(latitude), nlong=n_distinct(longitude), nyear=n_distinct(year))
+
+#How may missing lat longs?
+miss_ll<-frog_dat %>% group_by(site_id, point_id) %>% filter(is.na(latitude)) #2005 missing lat and long. Will want to rectify this issue. 
+
+#Did you want to consider an observer effect?
+length(unique(frog_dat$observer)) # 101 unique observers
+obs<-frog_dat %>% group_by(observer) %>% dplyr::summarize(obsyr=n_distinct(year))
+hist(obs$obsyr) #there are a lot of first year observers
+
+#Do some observers survey multiple sites? 
+length(unique(frog_dat$site_id)) # 744 unique sites
+obs2<-frog_dat %>% group_by(observer) %>% dplyr::summarize(obssite=n_distinct(site_id))
+hist(obs2$obssite)#there are a lot of observers that survey multiple sites. Likely because they are paid employees and not volunteers.
+
+```
+
+What this summary tells me is that a lat and long are not unique to the point_id within a site. It appears that a surveyor takes a new lat and long each year which is less efficient than working from fixed point count locations. We will need to assign a single lat&long per site_id (or point_id) for the analysis. Doug shared the master site list, which should have unique lat and long for each site ID. 
+
+There are a lot of observers that survey multiple point per year, but there are also a lot of observers that only survey for one year. We may consider including an `observer-site` random effect in the model. We might also want to have a first-year observer effect if we anticipate that first year observers are less proficient. Recall that surveyors and trained professionals and must pass a test to participate in the survey, so observer effects may be negligable. 
+
+#Data cleaning
+
+There is a modifier `M` on some of the point_ids. Doug suggest these are site who's locations needed to be modified slightly within a given year. I will remove the modifier assuming they are close enough. 
+
+```{r mdrop}
+
+frog_dat<-frog_dat %>% mutate(point=ifelse(point_id=="1M", "1", ifelse(point_id=="2M", "2", ifelse(point_id=="3M", "3", ifelse(point_id=="4M", "4", ifelse(point_id=="5M", "5", ifelse(point_id=="6M", "6", ifelse(point_id=="8M", "8", ifelse(point_id=="1MA", "1", point_id))))))))) %>% select(-point_id) 
+
+frog_dat<-frog_dat %>% dplyr::rename(point_id=point)
+
+```
+
+Site 5755 is missing lat and longs. There doesn't appear to be any in the database for any year. Doug confirmed that this is a data entry error and they site should be 5735. 
+
+```{r sitefix}
+
+frog_dat<-frog_dat %>% mutate(site_id=ifelse(site_id=="5755", "5735", site_id))
+
+```
+
+Now join to the master site file. 
+
+```{r masterjoin}
+
+frog_dat<-frog_dat %>% select(-latitude, -longitude, -drw_flag, -drw_notes)
+
+frog_dat$site_id<-as.integer(frog_dat$site_id)
+
+frog_dat<-left_join(frog_dat, site, by="site_id")
+
+```
+
+#Interval 0-10 min only
+
+Since the sampling changes in 2019 from 15 min to 10 min we want to remove any data that were collects after in the interval >10. But first, we have to separate the interval row at the first comma and only keep the time to first detection. Missing interval associated with aerial foragers, and therefore removed.  
+
+```{r interval}
+
+frog_dat$int<-sub(",.*", " ", frog_dat$interval)
+frog_dat$int<-as.numeric(frog_dat$int)
+frog_dat<-frog_dat %>% filter(int<10) %>% select(-interval) 
+
+```
+
+#Sites surveyed per year summary
+
+```{r sitesurvey}
+
+site_sum<-frog_dat %>% select(site_id, year) %>% distinct() %>% mutate(value="x")
+
+site_sum<-cast(site_sum, site_id~year, value="value")
+
+nyear<-frog_dat %>% group_by(site_id) %>% summarise(nyears=n_distinct(year))
+
+site_sum<-left_join(site_sum, nyear, by="site_id")
+
+write.csv(site_sum, "Output/Summary_SiteSumYear.csv")
+
+```
+
+#Types of sites surveyed per year (i.e., class)
+
+```{r siteclass}
+
+site_class<-frog_dat %>% group_by(class, year) %>% summarise(nsites=n_distinct(site_id))
+site_class<-cast(site_class, class~year, value="nsites")
+
+write.csv(site_class, "Output/Summary_ClassYear.csv")
+
+```
+
+There seems to be good sample sized for each class type in each year. 
