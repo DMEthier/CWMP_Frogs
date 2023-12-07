@@ -5,8 +5,6 @@ format: html
 editor: visual
 ---
 
-
-
 ## Coasta Wetland Monitoring Program (CWMP) - Laurentian Great Lakes Basin
 
 To facilitate collaboration and information sharing between public, private, and government agencies throughout the Great Lakes basin, we developed standardized methods and indicators used for assessing wetland condition. Using an ecosystem approach and a stratified random site selection process, birds, anurans, fish, macroinvertebrates, vegetation, and physico-chemical conditions were sampled in coastal wetlands of all five Great Lakes including sites from the United States and Canada. The primary objective of this monitoring program was to implement a standardized standardized basin-wide coastal wetland monitoring program that would be a powerful tool to inform decision-makers on coastal wetland conservation and restoration priorities throughout the Great Lakes basin.
@@ -49,18 +47,14 @@ Data recorded during the survey included:
 
 For safety reasons, we recommend only shore-based and no over-water nighttime surveys. Calling intensity for each species was coded according to three categories: Code 1 described a condition where calls were not simultaneous and individuals of a given species could be counted; Code 2 represented a level of activity where some calling was simultaneous, but numbers of individuals could be reliably estimated; Code 3 described a full chorus with so many continuous and overlapping calls that individuals could not be accurately counted.
 
-
-## Resources 
+## Resources
 
 For more details on sampling, please review Uzerski et al. 2017. Standard measures of Coastal Wetland Condition: Implementation at a Laurentian Great Lakes Basin-Wide Scale. Wetlands. 37: 15-32.
 
-A copy of this data collection protocol and meta data form can be found in the `Resource` folder in this project directory. 
-
+A copy of this data collection protocol and meta data form can be found in the `Resource` folder in this project directory.
 
 ## Author
 
-The original R code were created by Danielle Ethier, Population Scientist with Birds Canada. 
-Modification Date: December 2023
-
+The original R code were created by Danielle Ethier, Population Scientist with Birds Canada. Modification Date: December 2023
 
 Great Lakes Coastal Wetland Monitoring Program (GLCWMP), funded by the Great Lakes Restoration Initiative through the US EPA Great Lakes National Program Office to D. Uzarski, Central Michigan University. 2011-2025. Grant numbers GL-00E00612-0, 00E01567 and 00E02956. URL: https://www.greatlakeswetlands.org
