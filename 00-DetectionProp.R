@@ -1,6 +1,5 @@
 # Calculate detection probabilities across years for CWMP frog trends paper
-
-setwd("C:/Users/dtozer/Documents/EPA Coastal/Manuscripts/Trends frogs/Detection probability")
+# writen by Doug Tozer 
 
 library(ggplot2)
 library(png)
@@ -10,7 +9,7 @@ library(unmarked)
 
 # Bring in raw data
 
-data <- read.csv("cwmpFrogData.csv")
+data <- read.csv("Data/CWMP_anuran_obs.csv")
 summary(data)
 str(data)
 names(data)
