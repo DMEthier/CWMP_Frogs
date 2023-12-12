@@ -35,7 +35,7 @@ The site metadata files was provided separately by Doug Tozer. If a new files is
 
 What we will want to load into RStudio is the raw data, which are save in `.csv` format and in the `Data` directory in this R Project folder. If you need to update this analysis, simply re-save the raw data with the same file names in the `Data` folder.
 
-#Load data and join tables
+#Load response data and join tables 
 
 ```{r data}
 
@@ -116,11 +116,15 @@ Now join to the master site file.
 
 ```{r masterjoin}
 
-frog_dat<-frog_dat %>% select(-latitude, -longitude, -drw_flag, -drw_notes)
+frog_dat<-frog_dat %>% select(-latitude, -longitude)
 
 frog_dat$site_id<-as.integer(frog_dat$site_id)
 
-frog_dat<-left_join(frog_dat, site, by="site_id")
+frog_dat<-left_join(frog_dat, site, by=c("site_id"))
+
+#recode the St. Lawrence sites as Ontario otherwise lake level will not align
+frog_dat$basin[frog_dat$basin=="St. Lawrence"] <- "Ontario" 
+
 
 ```
 
@@ -223,6 +227,165 @@ events2<-frog_dat %>% select(site_id, point_id, sample, year, region) %>% distin
 
 ```
 
+#Load covariate data to be added to events matrix
+
+```{r cov data}
+
+Dcov<-read.csv("Data/DynamicCovs.csv") #dynamic
+Scov<-read.csv("Data/StaticCovs.csv") #static
+lakel<-read.csv("Data/Lakelevel.csv") #lake level
+
+```
+
+#detrend lake level since it is correlated with year
+
+```{r lakelevel}
+
+#create output table only need to run once
+#detrend<- as.data.frame(matrix(data = NA, nrow = 1, ncol = 4, byrow = FALSE, dimnames = NULL))
+#names(detrend) <- c("lake", "year", "detrend.lk", "scale.lk")
+#write.table(detrend, file = paste(dat.dir,"CWMP_detrend_lake.csv", sep=""), row.names = FALSE, #append = FALSE, quote = FALSE, sep = ",")
+
+#Get the average summer lake level (May-July) 
+#lakel<-lakel %>% mutate(lakelevel = (may+jun+jul)/3)
+
+#Let's detrend the Lakelevel variable
+
+#lake.list<-unique(lakel$lake)
+
+#for(m in 1:length(lake.list)){
+  
+#m<-1 #for testing the loop
+  
+#lk.data<-NULL #clear old data frame
+#lk.data<-lakel %>% filter(lake==lake.list[m])
+
+#trend<-lm(lakelevel~year, data=lk.data)
+#lk.data$predict<-predict(trend)
+#lk.data$detrend.lk<-lk.data$lakelevel-lk.data$predict
+#lk.data <- lk.data %>% select(lake, year, detrend.lk)
+#lk.data$scale.lk<-scale(lk.data$detrend.lk, scale=TRUE, center=TRUE)
+
+#write.table(lk.data, file = paste(dat.dir,"CWMP_detrend_lake.csv", sep=""), row.names = FALSE, append = TRUE, col.names=FALSE, quote = FALSE, sep = ",")  
+
+#} #end loop
+
+laked<-read.csv("Data/CWMP_detrend_lake.csv")  #manual edit to separate Hur-Mich
+laked<-na.omit(laked)
+
+#test plot
+ggplot(laked, aes(x=year, y=scale.lk, colour=basin))+
+  geom_line(size=2)+
+  theme_classic()+
+  xlab("Year")+
+  ylab("Mean lake level May-July (scaled per lake)")
+
+#merge with events
+
+events<-left_join(events, laked, by=c("basin", "year"))
+
+```
+
+#Explore Static Covariates
+
+```{r static}
+
+Scov<-Scov %>% mutate(point=ifelse(point_id=="1M", "0", ifelse(point_id=="2M", "0", ifelse(point_id=="3M", "0", ifelse(point_id=="4M", "0", ifelse(point_id=="5M", "0", ifelse(point_id=="6M", "0", ifelse(point_id=="8M", "0", ifelse(point_id=="1MA", "0", point_id))))))))) %>% select(-point_id) 
+
+Scov<-Scov %>% filter(point>0) #remove as they create duplicates in the data
+
+Scov<-Scov %>% dplyr::rename(point_id=point)
+
+#Are predictors correlated, removed correlations
+cor.m<-Scov %>% select(percfor2500m, percWet2500m, percWet250m, percAgWatershed, percUrbWatershed, kmsRoadsPerHa2500m) %>% na.omit() %>% distinct()
+cor(cor.m)
+#cor with p-vlue
+library(Hmisc)
+rcorr(as.matrix(cor.m))
+
+Scov<-Scov %>% select(site_id, point_id, percfor2500m, percWet2500m, percWet250m, percAgWatershed, percUrbWatershed, kmsRoadsPerHa2500m)
+
+#merge with events layer
+events<- left_join(events, Scov, by=c("site_id", "point_id"), relationship = "many-to-many")
+
+#Explore variability in static covariates 
+
+pred.mean<- events %>% group_by(basin) %>% summarise(PercentAgricultural = mean(percAgWatershed, na.rm=TRUE), PercentUrban=mean(percUrbWatershed, na.rm=TRUE), PercentWetland=mean(percWet2500m, na.rm=TRUE), WetSize =mean(percWet250m, na.rm=TRUE), PercentRoad = mean(kmsRoadsPerHa2500m, na.rm=TRUE))
+pred.mean<-gather(pred.mean, key="predictor", value="mean", 2:6)
+
+pred.sd<-events %>% group_by(basin) %>% summarise(SDAgricultural = sd(percAgWatershed, na.rm=TRUE), SDUrban=sd(percUrbWatershed, na.rm=TRUE), SDWetland=sd(percWet2500m, na.rm=TRUE), SDWetSize =sd(percWet250m, na.rm=TRUE), SDRoad = sd(kmsRoadsPerHa2500m, na.rm=TRUE))
+pred.sd<-gather(pred.sd, key="predictor", value="sd", 2:6)
+pred.sd<-pred.sd %>% select(-basin, -predictor)
+
+pred<-cbind(pred.mean, pred.sd)
+pred<-na.omit(pred)
+
+ggplot(pred, aes(x=basin, y=mean, col=basin))+
+  geom_point()+
+  geom_errorbar((aes(ymin=mean-sd, ymax=mean+sd, width=.6)))+
+  facet_wrap(~predictor, scales="free")+
+  theme_classic()+
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank())+
+  theme(text=element_text(size=15))+
+  scale_color_manual(values = c("blue", "orange", "red", "purple", "black"))
+
+```
+
+#Explore Dynamic covariate (including detrended water level)
+
+```{r dynamic}
+
+Dcov<-Dcov %>% mutate(point=ifelse(point_id=="1M", "0", ifelse(point_id=="2M", "0", ifelse(point_id=="3M", "3", ifelse(point_id=="4M", "0", ifelse(point_id=="5M", "0", ifelse(point_id=="6M", "6", ifelse(point_id=="8M", "0", ifelse(point_id=="1MA", "0", point_id))))))))) %>% select(-point_id) 
+
+Dcov<-Dcov %>% filter(point>0)
+
+Dcov<-Dcov %>% dplyr::rename(point_id=point)
+
+#Are predictors correlated, removed correlations
+cor.m<-Dcov %>% select(wqIndex, cond, totP, solReacP, totN, ammoniaN, nitrateN) %>% na.omit() %>% distinct()
+cor(cor.m)
+#cor with p-vlue
+library(Hmisc)
+rcorr(as.matrix(cor.m))
+
+Dcov<-Dcov %>% select(site_id, point_id, year, solReacP, totN, ammoniaN, cond)
+
+#merge with events
+events<-left_join(events, Dcov, by=c("site_id", "point_id", "year"), relationship = "many-to-many")
+
+#Explore variability in dynamic covariates 
+
+pred.mean2<- events %>% group_by(basin, year) %>% summarise(LakeLevel=mean(scale.lk, na.rm=TRUE), P= mean(solReacP, na.rm=TRUE), N=mean(totN, na.rm=TRUE), ammonian =mean(ammoniaN, na.rm=TRUE), cond = mean(cond, na.rm=TRUE))
+pred.mean2<-gather(pred.mean2, key="predictor", value="mean", 3:7)
+
+pred.sd2<-events %>% group_by(basin, year) %>% summarise(LakeLevelsd=sd(scale.lk, na.rm=TRUE), Psd= sd(solReacP, na.rm=TRUE), Nsdsd=sd(totN, na.rm=TRUE), ammoniansd =sd(ammoniaN, na.rm=TRUE), condsd = sd(cond, na.rm=TRUE))
+pred.sd2<-gather(pred.sd2, key="predictor", value="sd", 3:7)
+
+pred.sd2<-pred.sd2 %>% ungroup() %>% select(-basin, -year, -predictor)
+
+pred2<-cbind(pred.mean2, pred.sd2)
+pred2<-na.omit(pred2)
+
+ggplot(pred2, aes(x=year, y=mean, col=basin))+
+  geom_line()+
+  geom_errorbar((aes(ymin=mean-sd, ymax=mean+sd, width=.6)))+
+  facet_wrap(~predictor, scales="free")+
+  theme_classic()+
+  #theme(axis.title.x=element_blank(), axis.text.x=element_blank())+
+  theme(text=element_text(size=15))+
+  scale_color_manual(values = c("blue", "orange", "red", "purple", "black"))#
+
+
+```
+
+#Select final events data
+```{r events2}
+
+events<-events %>% select(site_id, point_id, year, lat, lon, class, basin, region, scale.lk, percfor2500m, percWet2500m, percWet250m, percAgWatershed, percUrbWatershed, kmsRoadsPerHa2500m, solReacP, totN, ammoniaN, cond)
+
+```
+
+
 #Create the speices list
 
 ```{r splist}
@@ -236,7 +399,6 @@ frog_dat<- subset(frog_dat, !(taxa_code %in% c("MIFR", "PIFR", "FOTO", "(none)")
 sp.list<-unique(frog_dat$ssp)
 
 ```
-
 
 #Species raw occupancy 
 
@@ -289,8 +451,8 @@ Creates the `CWMP_MaxOcc.csv` used for the analysis, which is a zero-filled data
 ```{r range}
 
 #Create table outside the species loop
-maxcount<- as.data.frame(matrix(data = NA, nrow = 1, ncol = 12, byrow = FALSE, dimnames = NULL))
-names(maxcount) <- c("site_id", "point_id", "year", "lat", "long", "class", "basin", "region", "areaHa", "maxocc", "maxcode", "taxa_code")
+maxcount<- as.data.frame(matrix(data = NA, nrow = 1, ncol = 22, byrow = FALSE, dimnames = NULL))
+names(maxcount) <- c("site_id", "point_id", "year", "lat", "long", "class", "basin", "region", "scale.lake", "per_forest", "per_wetlg", "per_wetsm", "per_agri", "per_urban", "Roadkm", "SolReacP", "totN", "ammoniaN", "cond", "maxocc", "maxcode", "taxa_code")
 write.table(maxcount, file = paste(out.dir,"CWMP_MaxOcc.csv", sep=""), row.names = FALSE, append = FALSE, quote = FALSE, sep = ",")
 
 #Read back in the master_basin file to assing range  
@@ -338,7 +500,5 @@ write.table(sp.data, file = paste(out.dir,"CWMP_MaxOcc.csv", sep=""), row.names 
 } #end loop
 
 ```
-
-
 
 
