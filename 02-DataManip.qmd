@@ -35,7 +35,7 @@ The site metadata files was provided separately by Doug Tozer. If a new files is
 
 What we will want to load into RStudio is the raw data, which are save in `.csv` format and in the `Data` directory in this R Project folder. If you need to update this analysis, simply re-save the raw data with the same file names in the `Data` folder.
 
-#Load response data and join tables 
+#Load response data and join tables
 
 ```{r data}
 
@@ -163,10 +163,9 @@ write.csv(sp, "Output/Summary_SpeciesYear.csv", row.names=FALSE)
 
 ```
 
-
 #Assign each site to a BCR or Region
 
-At first we were assigning each sample point to a BCR-Basin intersect to assign out of range, but then Doug created a unique puzzle to do this more accurately. The shape file is saved in the `Data` folder called `puzzelPieces.shp` but the near assignment was done in ArcGIS because some of the sample points fall outside the bounds of the .shp file. The old BCR code is still currently retained but could be deleted if found to be obsolete. 
+At first we were assigning each sample point to a BCR-Basin intersect to assign out of range, but then Doug created a unique puzzle to do this more accurately. The shape file is saved in the `Data` folder called `puzzelPieces.shp` but the near assignment was done in ArcGIS because some of the sample points fall outside the bounds of the .shp file. The old BCR code is still currently retained but could be deleted if found to be obsolete.
 
 ```{r region}
 
@@ -188,9 +187,9 @@ write.csv(site_basin, "Output/Summary_BasinYear.csv")
 
 ```
 
-There seems to be good sample sized for each class type in each year. 
+There seems to be good sample sized for each class type in each year.
 
-#Plot route locations and number of years surveyed 
+#Plot route locations and number of years surveyed
 
 ```{r plot}
 
@@ -342,23 +341,35 @@ Dcov<-Dcov %>% filter(point>0)
 Dcov<-Dcov %>% dplyr::rename(point_id=point)
 
 #Are predictors correlated, removed correlations
-cor.m<-Dcov %>% select(wqIndex, cond, totP, solReacP, totN, ammoniaN, nitrateN) %>% na.omit() %>% distinct()
-cor(cor.m)
-#cor with p-vlue
-library(Hmisc)
-rcorr(as.matrix(cor.m))
+#cor.m<-Dcov %>% select(wqIndex, cond, totP, solReacP, ammoniaN, totN, nitrateN) %>% na.omit() %>% distinct()
+#cor(cor.m)
+##cor with p-vlue
+#library(Hmisc)
+#rcorr(as.matrix(cor.m))
 
-Dcov<-Dcov %>% select(site_id, point_id, year, solReacP, totN, ammoniaN, cond)
+Dcov<-Dcov %>% select(site_id, point_id, crew_name, year, solReacP, nitrateN, ammoniaN, cond)
+
+#Account for detetion limit using the Rossate Stone
+detlim<-read.csv("Data/detection_ limit.csv")
+detlim<-detlim %>% select(-analyzed_by, -unit) 
+detlim<- cast(detlim, crew_name + year~analyte, value="det_limit")
+Dcov<-left_join(Dcov, detlim, by=c("crew_name", "year"))
+
+#if value is below the detection limit, then multiple it by 0.5
+
+Dcov<-Dcov %>% mutate(nitrateN = ifelse(nitrateN <= `Nitrate-N`, nitrateN*0.5, nitrateN), solReacP = ifelse(solReacP <= SRP , solReacP*0.5, solReacP), ammoniaN = ifelse(ammoniaN<=`Ammonium-N`, ammoniaN*0.5, ammoniaN))
+
+Dcov<-Dcov %>% select(site_id, point_id, crew_name, year, solReacP, nitrateN, ammoniaN, cond)
 
 #merge with events
 events<-left_join(events, Dcov, by=c("site_id", "point_id", "year"), relationship = "many-to-many")
 
 #Explore variability in dynamic covariates 
 
-pred.mean2<- events %>% group_by(basin, year) %>% summarise(LakeLevel=mean(scale.lk, na.rm=TRUE), P= mean(solReacP, na.rm=TRUE), N=mean(totN, na.rm=TRUE), ammonian =mean(ammoniaN, na.rm=TRUE), cond = mean(cond, na.rm=TRUE))
+pred.mean2<- events %>% group_by(basin, year) %>% summarise(LakeLevel=mean(scale.lk, na.rm=TRUE), P= mean(solReacP, na.rm=TRUE), N=mean(nitrateN, na.rm=TRUE), ammonian =mean(ammoniaN, na.rm=TRUE), cond = mean(cond, na.rm=TRUE))
 pred.mean2<-gather(pred.mean2, key="predictor", value="mean", 3:7)
 
-pred.sd2<-events %>% group_by(basin, year) %>% summarise(LakeLevelsd=sd(scale.lk, na.rm=TRUE), Psd= sd(solReacP, na.rm=TRUE), Nsdsd=sd(totN, na.rm=TRUE), ammoniansd =sd(ammoniaN, na.rm=TRUE), condsd = sd(cond, na.rm=TRUE))
+pred.sd2<-events %>% group_by(basin, year) %>% summarise(LakeLevelsd=sd(scale.lk, na.rm=TRUE), Psd= sd(solReacP, na.rm=TRUE), Nsdsd=sd(nitrateN, na.rm=TRUE), ammoniansd =sd(ammoniaN, na.rm=TRUE), condsd = sd(cond, na.rm=TRUE))
 pred.sd2<-gather(pred.sd2, key="predictor", value="sd", 3:7)
 
 pred.sd2<-pred.sd2 %>% ungroup() %>% select(-basin, -year, -predictor)
@@ -379,12 +390,12 @@ ggplot(pred2, aes(x=year, y=mean, col=basin))+
 ```
 
 #Select final events data
+
 ```{r events2}
 
-events<-events %>% select(site_id, point_id, year, lat, lon, class, basin, region, scale.lk, percfor2500m, percWet2500m, percWet250m, percAgWatershed, percUrbWatershed, kmsRoadsPerHa2500m, solReacP, totN, ammoniaN, cond)
+events<-events %>% select(site_id, point_id, year, lat, lon, class, basin, region, scale.lk, percfor2500m, percWet2500m, percWet250m, percAgWatershed, percUrbWatershed, kmsRoadsPerHa2500m, solReacP, nitrateN, ammoniaN, cond)
 
 ```
-
 
 #Create the speices list
 
@@ -400,9 +411,9 @@ sp.list<-unique(frog_dat$ssp)
 
 ```
 
-#Species raw occupancy 
+#Species raw occupancy
 
-Here we explore the raw occupancy based on basin. This is raw occupancy based on three visits per site. 
+Here we explore the raw occupancy based on basin. This is raw occupancy based on three visits per site.
 
 ```{r spsum}
 
@@ -446,13 +457,13 @@ write.csv(master_basin, "Output/OccupancyPerRegion_full.csv", row.names = FALSE)
 
 #Max occupancy per survey point
 
-Creates the `CWMP_MaxOcc.csv` used for the analysis, which is a zero-filled data matrix. 
+Creates the `CWMP_MaxOcc.csv` used for the analysis, which is a zero-filled data matrix.
 
 ```{r range}
 
 #Create table outside the species loop
 maxcount<- as.data.frame(matrix(data = NA, nrow = 1, ncol = 22, byrow = FALSE, dimnames = NULL))
-names(maxcount) <- c("site_id", "point_id", "year", "lat", "long", "class", "basin", "region", "scale.lake", "per_forest", "per_wetlg", "per_wetsm", "per_agri", "per_urban", "Roadkm", "SolReacP", "totN", "ammoniaN", "cond", "maxocc", "maxcode", "taxa_code")
+names(maxcount) <- c("site_id", "point_id", "year", "lat", "long", "class", "basin", "region", "scale.lake", "per_forest", "per_wetlg", "per_wetsm", "per_agri", "per_urban", "Roadkm", "SolReacP", "nitrateN", "ammoniaN", "cond", "maxocc", "maxcode", "taxa_code")
 write.table(maxcount, file = paste(out.dir,"CWMP_MaxOcc.csv", sep=""), row.names = FALSE, append = FALSE, quote = FALSE, sep = ",")
 
 #Read back in the master_basin file to assing range  
@@ -494,11 +505,9 @@ sp.data<-left_join(maxocc, sp.range, by="region")
 #drop range == 0 
 sp.data<-sp.data %>% filter(range>=1) %>% select(-range)
   
-write.table(sp.data, file = paste(out.dir,"CWMP_MaxOcc.csv", sep=""), row.names = FALSE, append = TRUE, col.names=FALSE, quote = FALSE, sep = ",")  
+write.table(sp.data, file = paste(out.dir,"CWMP_MaxOccV2.csv", sep=""), row.names = FALSE, append = TRUE, col.names=FALSE, quote = FALSE, sep = ",")  
 
 
 } #end loop
 
 ```
-
-
