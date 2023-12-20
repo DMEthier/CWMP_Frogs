@@ -349,17 +349,15 @@ Dcov<-Dcov %>% dplyr::rename(point_id=point)
 
 Dcov<-Dcov %>% select(site_id, point_id, crew_name, year, solReacP, nitrateN, ammoniaN, cond)
 
-#Account for detetion limit using the Rossate Stone
-detlim<-read.csv("Data/detection_ limit.csv")
-detlim<-detlim %>% select(-analyzed_by, -unit) 
-detlim<- cast(detlim, crew_name + year~analyte, value="det_limit")
-Dcov<-left_join(Dcov, detlim, by=c("crew_name", "year"))
+#Account for detection limit using the Rossate Stone
+#detlim<-read.csv("Data/detection_ limit.csv")
+#detlim<-detlim %>% select(-analyzed_by, -unit) 
+#detlim<- cast(detlim, crew_name + year~analyte, value="det_limit")
+#Dcov<-left_join(Dcov, detlim, by=c("crew_name", "year"))
 
 #if value is below the detection limit, then multiple it by 0.5
-
-Dcov<-Dcov %>% mutate(nitrateN = ifelse(nitrateN <= `Nitrate-N`, nitrateN*0.5, nitrateN), solReacP = ifelse(solReacP <= SRP , solReacP*0.5, solReacP), ammoniaN = ifelse(ammoniaN<=`Ammonium-N`, ammoniaN*0.5, ammoniaN))
-
-Dcov<-Dcov %>% select(site_id, point_id, crew_name, year, solReacP, nitrateN, ammoniaN, cond)
+#Dcov<-Dcov %>% mutate(nitrateN = ifelse(nitrateN <= `Nitrate-N`, nitrateN*0.5, nitrateN), solReacP = ifelse(solReacP <= SRP , #solReacP*0.5, solReacP), ammoniaN = ifelse(ammoniaN<=`Ammonium-N`, ammoniaN*0.5, ammoniaN))
+#Dcov<-Dcov %>% select(site_id, point_id, crew_name, year, solReacP, nitrateN, ammoniaN, cond)
 
 #merge with events
 events<-left_join(events, Dcov, by=c("site_id", "point_id", "year"), relationship = "many-to-many")
@@ -505,7 +503,7 @@ sp.data<-left_join(maxocc, sp.range, by="region")
 #drop range == 0 
 sp.data<-sp.data %>% filter(range>=1) %>% select(-range)
   
-write.table(sp.data, file = paste(out.dir,"CWMP_MaxOccV2.csv", sep=""), row.names = FALSE, append = TRUE, col.names=FALSE, quote = FALSE, sep = ",")  
+write.table(sp.data, file = paste(out.dir,"CWMP_MaxOcc.csv", sep=""), row.names = FALSE, append = TRUE, col.names=FALSE, quote = FALSE, sep = ",")  
 
 
 } #end loop
