@@ -140,6 +140,25 @@ write.csv(site_sum, "Output/Summary_SiteSumYear.csv", row.names = FALSE)
 
 ```
 
+#Point surveyed per year summary
+
+```{r sitesurvey}
+
+point_sum<-frog_dat %>% select(site_id, sample, year, basin) %>% distinct() %>% mutate(point=paste(site_id, sample, sep="-")) %>% select(-site_id, -sample)
+
+point_sum_all <- point_sum %>% group_by(year) %>% summarise(n=length(point)) 
+mean(point_sum_all$n)  #437.8462
+
+point_sum_all <- point_sum %>% group_by(year) %>% summarise(n=length(point)) 
+mean(point_sum_all$n)  #437.8462
+range(point_sum_all$n) #331 507
+
+
+point_sum_basin <- point_sum %>% group_by(year, basin) %>% summarise(n=length(point)) 
+point_sum_basin <- point_sum_basin %>% group_by(basin) %>% summarise(mean = mean(n), min = min(n), max = max(n))
+
+```
+
 #Types of sites surveyed per year (i.e., class)
 
 ```{r siteclass}
@@ -309,10 +328,10 @@ events<- left_join(events, Scov, by=c("site_id", "point_id"), relationship = "ma
 
 #Explore variability in static covariates 
 
-pred.mean<- events %>% group_by(basin) %>% summarise(PercentAgricultural = mean(percAgWatershed, na.rm=TRUE), PercentUrban=mean(percUrbWatershed, na.rm=TRUE), PercentWetland=mean(percWet2500m, na.rm=TRUE), WetSize =mean(percWet250m, na.rm=TRUE), PercentRoad = mean(kmsRoadsPerHa2500m, na.rm=TRUE))
+pred.mean<- events %>% group_by(basin) %>% summarise(PercentAgricultural = mean(percAgWatershed, na.rm=TRUE), PercentUrban=mean(percUrbWatershed, na.rm=TRUE), PercentWetland=mean(percWet2500m, na.rm=TRUE), WetSize =mean(percWet250m, na.rm=TRUE), PercentRoad = mean(kmsRoadsPerHa2500m, na.rm=TRUE), PercentForest = mean(percfor2500m, na.rm=TRUE))
 pred.mean<-gather(pred.mean, key="predictor", value="mean", 2:6)
 
-pred.sd<-events %>% group_by(basin) %>% summarise(SDAgricultural = sd(percAgWatershed, na.rm=TRUE), SDUrban=sd(percUrbWatershed, na.rm=TRUE), SDWetland=sd(percWet2500m, na.rm=TRUE), SDWetSize =sd(percWet250m, na.rm=TRUE), SDRoad = sd(kmsRoadsPerHa2500m, na.rm=TRUE))
+pred.sd<-events %>% group_by(basin) %>% summarise(SDAgricultural = sd(percAgWatershed, na.rm=TRUE), SDUrban=sd(percUrbWatershed, na.rm=TRUE), SDWetland=sd(percWet2500m, na.rm=TRUE), SDWetSize =sd(percWet250m, na.rm=TRUE), SDRoad = sd(kmsRoadsPerHa2500m, na.rm=TRUE), SDForest = sd(percfor2500m, na.rm=TRUE))
 pred.sd<-gather(pred.sd, key="predictor", value="sd", 2:6)
 pred.sd<-pred.sd %>% select(-basin, -predictor)
 

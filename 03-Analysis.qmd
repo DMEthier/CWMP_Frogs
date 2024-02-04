@@ -1,10 +1,3 @@
----
-title: "03-Analysis"
-format: html
-editor: visual
-editor_options: 
-  chunk_output_type: console
----
 
 ---
 title: "03-Analysis"
@@ -54,7 +47,6 @@ library(MatrixModels)
 
 ```
 
-
 #Load data and set directories
 
 Note: this is a zero-filled and range reduced data table
@@ -62,7 +54,7 @@ Note: this is a zero-filled and range reduced data table
 ```{r data}
 
 dat<-read.csv("Output/CWMP_MaxOcc.csv") #data that does not consider detection limit
-dat<-read.csv("Output/CWMP_MaxOccV2.csv") #data that considers detection limit
+#dat<-read.csv("Output/CWMP_MaxOccV2.csv") #data that considers detection limit
 out.dir<-"Output/"
 
 ```
@@ -150,7 +142,7 @@ dat <- dat %>% mutate(std_yr = year - max.yr)
 dat$class<-as.factor(dat$class)
 dat$basin<-as.factor(dat$basin)
 dat$taxa_code<-as.factor(dat$taxa_code)
-dat$kappa_k <- as.integer(factor(dat$site_id)) #index for the random site effect
+dat$kappa_k <- as.integer(factor(dat$site_id)) #index for the random site (wetland) effect
 dat$tau_i <- dat$alpha_i <- as.integer(factor(dat$basin)) #index for each basin intercept and slope
 
 #Specify model with year-basin effects so that we can predict the annual index value for each basin
@@ -174,7 +166,9 @@ grid_key <- unique(sp.data[, c("basin", "alpha_i")])
 grid_key$StateProvince<-"All"
 row.names(grid_key) <- NULL
 
-formula<-maxocc ~ std_yr + scale.lake + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond
+formula<-maxocc ~ std_yr + scale.lake + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm 
+
+#formula<-maxocc ~ std_yr + scale.lake + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond
 sp.dat<-sp.data %>% na.omit()
 f0 <- glm(formula, data = sp.dat, family = "binomial")
 summary(f0)
@@ -232,7 +226,7 @@ f2 <- maxocc ~ -1 +
  # basin-year effect
   f(gamma_ij, model="iid", constr=TRUE, 
    hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) + 
-  scale.lake + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond
+  scale.lake + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm #+ SolReacP + nitrateN + ammoniaN + cond
 
 out2<- inla(f2, family="binomial", data=sp.data,
             control.compute=list(cpo=T, dic=TRUE, waic=TRUE, return.marginals.predictor=TRUE, config=TRUE),
@@ -338,7 +332,7 @@ grid1<- as.character(cell_id[k,"basin"])
    d2<-merge(d2, grid_key, by.x="cell", by.y="alpha_i")
    d2$taxa_code<-sp
    
-   d3<-d2 %>% select(basin, taxa_code, styear, abund) %>% mutate(year=styear+2021) %>% select(-styear)
+   d3<-d2 %>% select(basin, taxa_code, styear, abund) %>% mutate(year=styear+2023) %>% select(-styear)
  
 #lci     
    l0 <- out2$summary.random$alpha_i$`0.025quant`[cell1]
@@ -357,7 +351,7 @@ grid1<- as.character(cell_id[k,"basin"])
    l2$cell<-cell1
    l2<-merge(l2, grid_key, by.x="cell", by.y="alpha_i")
    
-  l3<-l2 %>% select(basin, styear, abund_lci) %>% mutate(year=styear+2021) %>% select(-styear) 
+  l3<-l2 %>% select(basin, styear, abund_lci) %>% mutate(year=styear+2023) %>% select(-styear) 
 
 #uci  
  u0 <- out2$summary.random$alpha_i$`0.975quant`[cell1]
@@ -376,7 +370,7 @@ grid1<- as.character(cell_id[k,"basin"])
    u2$cell<-cell1
    u2<-merge(u2, grid_key, by.x="cell", by.y="alpha_i")
    
-u3<-u2 %>% select(basin, styear, abund_uci) %>% mutate(year=styear+2021) %>% select(-styear)   
+u3<-u2 %>% select(basin, styear, abund_uci) %>% mutate(year=styear+2023) %>% select(-styear)   
 
 d3<-merge(d3, l3, by=c("basin", "year"))
 d3<-merge(d3, u3, by=c("basin", "year"))
@@ -495,14 +489,16 @@ mydata<-data.frame(per_forest=mean(dat$per_forest, na.rm=TRUE),
                   per_agri=mean(dat$per_agri, na.rm=TRUE),
                   per_urban=mean(dat$per_urban, na.rm=TRUE),
                   Roadkm=mean(dat$Roadkm, na.rm=TRUE),
-                  SolReacP=mean(dat$SolReacP, na.rm=TRUE),
-                  nitrateN=mean(dat$nitrateN, na.rm=TRUE),
-                  ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
-                  cond=mean(dat$cond, na.rm=TRUE),
+                  #SolReacP=mean(dat$SolReacP, na.rm=TRUE),
+                  #nitrateN=mean(dat$nitrateN, na.rm=TRUE),
+                  #ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
+                  #cond=mean(dat$cond, na.rm=TRUE),
                   scale.lake=seq(from=-1.69377, to=1.96665, length=25) 
                    )
 
-Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
+Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + scale.lake, data=mydata)
+
+#Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
 Xmat<-as.data.frame(Xmat)
 
 lcb<-inla.make.lincombs(Xmat)
@@ -534,13 +530,18 @@ mydata<-data.frame(scale.lake=mean(dat$scale.lake, na.rm=TRUE),
                   per_wetsm=mean(dat$per_wetsm, na.rm=TRUE), 
                   per_agri=mean(dat$per_agri, na.rm=TRUE),
                   per_urban=mean(dat$per_urban, na.rm=TRUE),
-                  Roadkm=mean(dat$Roadkm, na.rm=TRUE),
-                  SolReacP=mean(dat$SolReacP, na.rm=TRUE),
-                  nitrateN=mean(dat$nitrateN, na.rm=TRUE),
-                  ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
-                  cond=mean(dat$cond, na.rm=TRUE))
+                  Roadkm=mean(dat$Roadkm, na.rm=TRUE)
+                  #SolReacP=mean(dat$SolReacP, na.rm=TRUE),
+                  #nitrateN=mean(dat$nitrateN, na.rm=TRUE),
+                  #ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
+                  #cond=mean(dat$cond, na.rm=TRUE))
+)
 
-Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
+
+Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + scale.lake, data=mydata)
+
+#Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
+
 Xmat<-as.data.frame(Xmat)
 
 lcb<-inla.make.lincombs(Xmat)
@@ -571,13 +572,17 @@ mydata<-data.frame(scale.lake=mean(dat$scale.lake, na.rm=TRUE),
                   per_wetsm=mean(dat$per_wetsm, na.rm=TRUE), 
                   per_agri=mean(dat$per_agri, na.rm=TRUE),
                   per_urban=mean(dat$per_urban, na.rm=TRUE),
-                  Roadkm=mean(dat$Roadkm, na.rm=TRUE),
-                  SolReacP=mean(dat$SolReacP, na.rm=TRUE),
-                  nitrateN=mean(dat$nitrateN, na.rm=TRUE),
-                  ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
-                  cond=mean(dat$cond, na.rm=TRUE))
+                  Roadkm=mean(dat$Roadkm, na.rm=TRUE)
+                # SolReacP=mean(dat$SolReacP, na.rm=TRUE),
+                #  nitrateN=mean(dat$nitrateN, na.rm=TRUE),
+                #  ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
+                #  cond=mean(dat$cond, na.rm=TRUE))
+)
 
-Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
+#Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
+
+Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + scale.lake, data=mydata)
+
 Xmat<-as.data.frame(Xmat)
 
 lcb<-inla.make.lincombs(Xmat)
@@ -608,13 +613,17 @@ mydata<-data.frame(scale.lake=mean(dat$scale.lake, na.rm=TRUE),
                   per_wetsm=seq(from = 0, to = 100, length = 25), 
                   per_agri=mean(dat$per_agri, na.rm=TRUE),
                   per_urban=mean(dat$per_urban, na.rm=TRUE),
-                  Roadkm=mean(dat$Roadkm, na.rm=TRUE),
-                  SolReacP=mean(dat$SolReacP, na.rm=TRUE),
-                  nitrateN=mean(dat$nitrateN, na.rm=TRUE),
-                  ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
-                  cond=mean(dat$cond, na.rm=TRUE))
+                  Roadkm=mean(dat$Roadkm, na.rm=TRUE)
+                  #SolReacP=mean(dat$SolReacP, na.rm=TRUE),
+                  #nitrateN=mean(dat$nitrateN, na.rm=TRUE),
+                  #ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
+                  #cond=mean(dat$cond, na.rm=TRUE))
+)
 
-Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
+Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + scale.lake, data=mydata)
+
+#Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
+
 Xmat<-as.data.frame(Xmat)
 
 lcb<-inla.make.lincombs(Xmat)
@@ -645,13 +654,16 @@ mydata<-data.frame(scale.lake=mean(dat$scale.lake, na.rm=TRUE),
                   per_wetsm=mean(dat$per_wetsm, na.rm=TRUE), 
                   per_agri=seq(from = 0, to = 100, length = 25),
                   per_urban=mean(dat$per_urban, na.rm=TRUE),
-                  Roadkm=mean(dat$Roadkm, na.rm=TRUE),
-                  SolReacP=mean(dat$SolReacP, na.rm=TRUE),
-                  nitrateN=mean(dat$nitrateN, na.rm=TRUE),
-                  ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
-                  cond=mean(dat$cond, na.rm=TRUE))
+                  Roadkm=mean(dat$Roadkm, na.rm=TRUE)
+                  #SolReacP=mean(dat$SolReacP, na.rm=TRUE),
+                  #nitrateN=mean(dat$nitrateN, na.rm=TRUE),
+                  #ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
+                  #cond=mean(dat$cond, na.rm=TRUE))
+)
+                  
+Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + scale.lake, data=mydata)
 
-Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
+#Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
 Xmat<-as.data.frame(Xmat)
 
 lcb<-inla.make.lincombs(Xmat)
@@ -682,13 +694,17 @@ mydata<-data.frame(scale.lake=mean(dat$scale.lake, na.rm=TRUE),
                   per_wetsm=mean(dat$per_wetsm, na.rm=TRUE), 
                   per_agri=mean(dat$per_agri, na.rm=TRUE),
                   per_urban=seq(from = 0, to = 100, length = 25),
-                  Roadkm=mean(dat$Roadkm, na.rm=TRUE),
-                  SolReacP=mean(dat$SolReacP, na.rm=TRUE),
-                  nitrateN=mean(dat$nitrateN, na.rm=TRUE),
-                  ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
-                  cond=mean(dat$cond, na.rm=TRUE))
+                  Roadkm=mean(dat$Roadkm, na.rm=TRUE)
+                  #SolReacP=mean(dat$SolReacP, na.rm=TRUE),
+                  #nitrateN=mean(dat$nitrateN, na.rm=TRUE),
+                  #ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
+                  #cond=mean(dat$cond, na.rm=TRUE))
+)
 
-Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
+Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + scale.lake, data=mydata)
+
+#Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
+
 Xmat<-as.data.frame(Xmat)
 
 lcb<-inla.make.lincombs(Xmat)
@@ -719,13 +735,16 @@ mydata<-data.frame(scale.lake=mean(dat$scale.lake, na.rm=TRUE),
                   per_wetsm=mean(dat$per_wetsm, na.rm=TRUE), 
                   per_agri=mean(dat$per_agri, na.rm=TRUE),
                   per_urban=mean(dat$per_urban, na.rm=TRUE),
-                  Roadkm=seq(from = 0, to = 6, length=25),
-                  SolReacP=mean(dat$SolReacP, na.rm=TRUE),
-                  nitrateN=mean(dat$nitrateN, na.rm=TRUE),
-                  ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
-                  cond=mean(dat$cond, na.rm=TRUE))
+                  Roadkm=seq(from = 0, to = 6, length=25)
+                  #SolReacP=mean(dat$SolReacP, na.rm=TRUE),
+                  #nitrateN=mean(dat$nitrateN, na.rm=TRUE),
+                  #ammoniaN=mean(dat$ammoniaN, na.rm=TRUE),
+                  #cond=mean(dat$cond, na.rm=TRUE))
+)
+                  
+Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + scale.lake, data=mydata)
 
-Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
+#Xmat<-model.matrix(~ -1 + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond + scale.lake, data=mydata)
 Xmat<-as.data.frame(Xmat)
 
 lcb<-inla.make.lincombs(Xmat)
@@ -748,6 +767,10 @@ mydata$UCI<-unlist(lapply(Pred.marg, function(x) inla.qmarginal(c(0.975), inla.t
 
 write.table(mydata, paste(out.dir, sp.list[m],"RoadEffect.csv"), row.names = FALSE, append = TRUE, quote = FALSE, sep = ",", col.names = TRUE)
 
+} #end species loop
+
+
+##ADD BACK TO LOOP IF INCLUDING ALL COVARAITES
 #SolReacP
 mydata<-NULL
 mydata<-data.frame(scale.lake=mean(dat$scale.lake, na.rm=TRUE), 
@@ -1098,94 +1121,54 @@ write.table(com.data, paste(out.dir, "CompositeOutputs.csv"), row.names = FALSE,
 
 ```
 
+#Basin area weighted composite trend outputs 
 
+```{r}
 
-##TO BE DELETED
-#Model selection test (will need moved inside the sp.loop)
+all_comb<- as.data.frame(matrix(data = NA, nrow = 1, ncol = 10, byrow = FALSE, dimnames = NULL))
+names(all_comb) <- c("taxa_code","med_alph", "lcl_alph", "ucl_alph", "iw_alph", "med_tau", "lcl_tau", "ucl_tau", "iw_tau", "n")
+write.table(all_comb, file = paste(out.dir, "CompositeOutputs.csv"), row.names = FALSE, append = FALSE, quote = FALSE, sep = ",")
 
-```{r model selection}
+postsum<-read.csv("Output/ PosteriorSummary.csv")
+area<-read.csv("Data/BasinArea.csv")
 
-besag="besag"
-prior="pc.prec"
-iid="iid"
+postsum<-merge(postsum, area, by.x="basin", by.y="lake")
 
-covs_df<-sp.data %>% select(scale.lake, per_forest, per_wetlg, per_wetsm, per_agri, per_urban, Roadkm, SolReacP, nitrateN, ammoniaN, cond)
+sp.list<-unique(postsum$taxa_code)
 
-for(i in 1:11){
+for(m in 1:length(sp.list)) {
   
-  f1 <- as.formula(paste0("maxocc ~ -1 + 
-  # cell ICAR random intercepts
-  f(alpha_i, model=besag, graph=g1, constr=FALSE, scale.model=TRUE,
-    hyper = list(prec = list(prior = prior, param = c(1, 0.01)))) +
-  # cell ICAR random year slopes
-  f(tau_i, std_yr, model=besag, graph=g1, constr=FALSE, scale.model=TRUE,
-    hyper = list(prec = list(prior = prior, param = c(1, 0.01)))) +
-  # random site intercepts
-  f(kappa_k, model=iid, constr=TRUE,
-    hyper = list(prec = list(prior = prior, param = c(1, 0.01))))+
- # basin-year effect
-  f(gamma_ij, model=iid, constr=TRUE, 
-   hyper = list(prec = list(prior = prior, param = c(1, 0.01)))) +"
-    , paste0(colnames(covs_df)[1:i], collapse = " + ")))
+#m<-1  #for testing   
 
-out1<- inla(f1, family="binomial", data=sp.data,
-            control.compute=list(dic = TRUE, cpo=TRUE, waic = TRUE, return.marginals.predictor=TRUE, config=TRUE),
-            control.inla=list(strategy="adaptive",
-                              int.strategy="auto"),
-           control.predictor = list(compute=TRUE, link=1),
-           control.family=list(link='logit'),
-            num.threads=3,
-            verbose=T)
+  com.data<-NULL
+  com.data <- filter(postsum, taxa_code == sp.list[m]) %>%
+      droplevels()
   
-model_selection <- if(i==1){rbind(c(model = paste(colnames(covs_df)[1:i]),waic = out1$waic$waic))}else{rbind(model_selection,c(model = paste(colnames(covs_df)[1:i],collapse = " + "),waic = out1$waic$waic))
-  }
+#sum to one area (i.e., percent)
+com.data<-com.data %>% mutate(totbasin=sum(basinAreaKm2), perbasin=basinAreaKm2/totbasin) %>% select(-watershedAreaKm2, -basinAreaKm2, -totbasin)
 
-}
+##Weighted average https://www.wikihow.com/Calculate-Weighted-Average
 
-model_selection  
+#pool estimates
+tau_prov <- com.data %>%
+    summarise(med_tau=weighted.mean(tau, perbasin), lcl_tau=weighted.mean(tau_ll, perbasin),
+            ucl_tau=weighted.mean(tau_ul, perbasin), iw_tau=ucl_tau-lcl_tau,
+            n=n_distinct(basin))
+tau_prov$taxa_code <- sp.list[m]
 
-f2 <- maxocc ~ -1 + 
-  # cell ICAR random intercepts
-  f(alpha_i, model="besag", graph=g1, constr=FALSE, scale.model=TRUE,
-    hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) +
-  # cell ICAR random year slopes
-  f(tau_i, std_yr, model="besag", graph=g1, constr=FALSE, scale.model=TRUE,
-    hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) +
-  # random site intercepts
-  f(kappa_k, model="iid", constr=TRUE,
-    hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01))))+
- # basin-year effect
-  f(gamma_ij, model="iid", constr=TRUE, 
-   hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) + 
-  scale.lake + per_forest + per_wetlg + per_wetsm + per_agri + per_urban + Roadkm + SolReacP + nitrateN + ammoniaN + cond
 
-out2<- inla(f2, family="binomial", data=sp.data,
-            control.compute=list(cpo=T, dic=TRUE, waic=TRUE, return.marginals.predictor=TRUE, config=TRUE),
-            control.inla=list(strategy="adaptive",
-                              int.strategy="auto"),
-           control.predictor = list(compute=TRUE, link=1),
-           control.family=list(link='logit'),
-            num.threads=3,
-            verbose=T)
+alph_prov <- com.data %>%
+    summarise(med_alph=weighted.mean(alph, perbasin), lcl_alph=weighted.mean(alph_ll, perbasin),
+            ucl_alph=weighted.mean(alph_ul, perbasin), iw_alph=ucl_alph-lcl_alph)
+alph_prov$taxa_code <- sp.list[m]
 
-out2$summary.fix
+com.data<-merge(alph_prov, tau_prov, by="taxa_code")
 
-par(mfrow=c(3,4))
-plot(out1$marginals.fixed[[1]], ty = "l", xlab = expression(beta[scale.lake]), ylab = "Density") 
-plot(out1$marginals.fixed[[2]], ty = "l", xlab = expression(beta[per_forest]), ylab = "Density") 
-plot(out1$marginals.fixed[[3]], ty = "l", xlab = expression(beta[per_wetlg]), ylab = "Density") 
-plot(out1$marginals.fixed[[4]], ty = "l", xlab = expression(beta[per_wetsm]), ylab = "Density") 
-plot(out1$marginals.fixed[[5]], ty = "l", xlab = expression(beta[per_agri]), ylab = "Density") 
-plot(out1$marginals.fixed[[6]], ty = "l", xlab = expression(beta[per_urban]), ylab = "Density") 
-plot(out1$marginals.fixed[[7]], ty = "l", xlab = expression(beta[per_Roadkm]), ylab = "Density") 
-plot(out1$marginals.fixed[[8]], ty = "l", xlab = expression(beta[per_SolReacP]), ylab = "Density") 
-plot(out1$marginals.fixed[[9]], ty = "l", xlab = expression(beta[per_nitrateN]), ylab = "Density") 
-plot(out1$marginals.fixed[10], ty = "l", xlab = expression(beta[per_ammoniaN]), ylab = "Density") 
-plot(out1$marginals.fixed[[11]], ty = "l", xlab = expression(beta[cond]), ylab = "Density") 
+write.table(com.data, paste(out.dir, "CompositeOutputs.csv"), row.names = FALSE, append = TRUE, quote = FALSE, sep = ",", col.names = FALSE)
+  
 
-# INLA-SPDE ROC
-prediction2 <- out2$summary.fitted.values$mean[1:length(sp.data$maxocc)]
-roc.data2 <- roc(response = sp.data$maxocc, predictor = prediction2, auc = TRUE)
-
+} #end species list
 
 ```
+
+
